@@ -1,6 +1,6 @@
-# Advanced User Data Formatter & SHA256 Hasher - SGTM Variable (Server)
+# User Data Formatter & SHA256 Hasher - SGTM Variable (Server)
 
-An enterprise-grade Variable Template for Server-Side Google Tag Manager (sGTM) designed to normalize, transliterate, and securely SHA256-hash User Data (Customer Information Parameters).
+An advanced Variable Template for Server-Side Google Tag Manager (sGTM) designed to normalize, transliterate, and securely SHA256-hash User Data (Customer Information Parameters).
 
 Built to maximize Event Match Quality (EMQ) across Meta, Google, TikTok, Snapchat and others by handling the invisible data-hygiene errors that kill conversion attribution, while keeping your data architecture strictly privacy-compliant.
 
@@ -13,7 +13,7 @@ When sending User Data to analytics or ad networks, you generally have three arc
 2. **Pre-Hashed by the Web Backend**: Your web server hashes the data before the page loads and pushes the hash into the frontend.
 	* **Pro**: Highly secure as clear text never hits the browser. 
 	* **Con**: It is impossible to debug. If your backend hashes a poorly formatted phone number (e.g., missing a country code), you cannot see the error, and the ad network rejects it silently. Fixing formatting rules requires backend developer tickets.
-3. **Hashed in Server-Side GTM (This Template)**: Data is sent securely from the browser to your owned Server Container in clear text. SGTM normalizes it perfectly, hashes it, and forwards the opaque hash to the receiver.
+3. **Hashed in Server-Side GTM (This Template)**: Data is sent securely from the browser to your owned Server Container. SGTM normalizes it perfectly, hashes it, and forwards the opaque hash to the receiver.
 
 ### Advantages of Hashing It Yourself in SGTM:
 
@@ -65,7 +65,7 @@ This setup creates a globally compliant email hash optimized for match rates.
 
 ### 2. Phone Number Settings
 
-If your phone number input is of good quality, you may skip some of the settings below.
+This setup creates a globally compliant phone hash optimized for match rates.
 
 #### 2.1 Phone Number: Google
 Google require pure digits and a + sign.
