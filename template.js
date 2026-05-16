@@ -8,17 +8,41 @@ const getEventData = require('getEventData');
 if (data.enableConsentGate) {
   let hasMarketingConsent = false;
   let hasAnalyticsConsent = false;
+  let parsedGoogleConsent = false;
 
-  // Method A: Check Google Consent Mode v2 (Native Event Data)
-  const consentState = getEventData('consent_state');
-  if (consentState) {
-    if (consentState.ad_storage === 'granted') hasMarketingConsent = true;
-    if (consentState.analytics_storage === 'granted') hasAnalyticsConsent = true;
+  // Method A: Check Google Consent Mode v2 (x-ga-gcd header)
+  // Structure: 11<ad_storage>1<analytics_storage>1<ad_user_data>1<ad_personalization>5
+  const xGaGcd = getEventData('x-ga-gcd');
+  
+  if (xGaGcd && getType(xGaGcd) === 'string') {
+    // Sandbox-safe way to extract letters (no regex literal)
+    let letters = [];
+    for (let i = 0; i < xGaGcd.length; i++) {
+      let char = xGaGcd[i].toLowerCase();
+      // Check if the character is a letter between 'a' and 'z'
+      if (char >= 'a' && char <= 'z') {
+        letters.push(char);
+      }
+    }
+    
+    if (letters.length >= 2) {
+      const adLetter = letters[0];
+      const analyticsLetter = letters[1];
+      
+      // 't', 'r', 'n', 'v' represent the various states of 'granted'
+      const grantedStatuses = ['t', 'r', 'n', 'v'];
+      
+      // Check if the extracted letter exists in our granted list
+      if (grantedStatuses.indexOf(adLetter) !== -1) hasMarketingConsent = true;
+      if (grantedStatuses.indexOf(analyticsLetter) !== -1) hasAnalyticsConsent = true;
+      
+      parsedGoogleConsent = true;
+    }
   }
 
-  // Method B: Check Google Consent Mode v1 (x-ga-gcs header)
+  // Method B: Check Google Consent Mode v1 (x-ga-gcs header fallback)
   // Format: G1[analytics][marketing] -> e.g., G110 (Analytics only), G111 (Both)
-  if (!consentState) {
+  if (!parsedGoogleConsent) {
     const xGaGcs = getEventData('x-ga-gcs');
     if (xGaGcs && getType(xGaGcs) === 'string' && xGaGcs.length >= 3) {
       if (xGaGcs[2] === '1') hasMarketingConsent = true;
@@ -26,7 +50,7 @@ if (data.enableConsentGate) {
     }
   }
 
-  // Evaluate based on the user's selected requirement
+  // Evaluate based on the user's selected requirement in the Template UI
   let consentMet = false;
   const requiredType = data.consentType || 'marketing'; 
 
@@ -38,7 +62,7 @@ if (data.enableConsentGate) {
     consentMet = true;
   }
 
-  // Method C: Fallback to Custom User-Defined Variable
+  // Method C: Fallback to Custom User-Defined Variable (CMP integration)
   if (!consentMet && data.consentVariable) {
     let currentConsent = data.consentVariable;
     let expectedConsent = data.expectedConsentValue || 'granted';
@@ -66,15 +90,30 @@ if (data.inputMethod === 'event_data') {
   const userData = getEventData('user_data') || {};
   const field = data.userDataField;
 
-  if (field === 'email_address') rawInput = userData.email_address;
-  else if (field === 'phone_number') rawInput = userData.phone_number;
+  if (field === 'email_address') {
+    // Handle both 'email_address' and 'email' keys
+    rawInput = userData.email || userData.email_address;
+  } 
+  else if (field === 'phone_number') {
+    rawInput = userData.phone_number;
+  } 
   else if (userData.address) {
-    if (field === 'first_name') rawInput = userData.address.first_name;
-    else if (field === 'last_name') rawInput = userData.address.last_name;
-    else if (field === 'city') rawInput = userData.address.city;
-    else if (field === 'region') rawInput = userData.address.region;
-    else if (field === 'postal_code') rawInput = userData.address.postal_code;
-    else if (field === 'country') rawInput = userData.address.country;
+    // Navigate the address array. We grab the first object (index 0).
+    let primaryAddress = userData.address[0];
+    
+    // Fallback: If some custom CRM pushes a flat object instead of an array, handle that too.
+    if (!primaryAddress && getType(userData.address) === 'object' && userData.address.first_name) {
+      primaryAddress = userData.address;
+    }
+
+    if (primaryAddress) {
+      if (field === 'first_name') rawInput = primaryAddress.first_name;
+      else if (field === 'last_name') rawInput = primaryAddress.last_name;
+      else if (field === 'city') rawInput = primaryAddress.city;
+      else if (field === 'region') rawInput = primaryAddress.region;
+      else if (field === 'postal_code') rawInput = primaryAddress.postal_code;
+      else if (field === 'country') rawInput = primaryAddress.country;
+    }
   }
 } else {
   rawInput = data.input;
