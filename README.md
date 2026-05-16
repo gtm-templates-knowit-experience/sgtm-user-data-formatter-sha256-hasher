@@ -23,11 +23,15 @@ When sending User Data to analytics or ad networks, you generally have three arc
 
 ## Features Overview
 
-* **Text & Email Normalization**: Trims whitespace, lowercases, and optionally strips periods from @gmail.com and @googlemail.com local addresses.
-* **MRZ Name Transliteration**: Hardcoded dictionary safely transliterates European characters (e.g., æ ➔ ae, ø ➔ oe, é ➔ e) down to the standard English a-z alphabet recommended by Meta.
-* **Custom Replacement Tables**: Simple UI tables allow you to define custom character replacements or removals for specific edge cases.
-* **E.164 Auto-Prefixing**: Adds a default country code only when it's missing, intelligently stripping local leading zeros.
-* **Dynamic Country Codes**: Map country ISO codes (like NO, SE, GB) from Event Data directly to their dialing prefixes (+47, +46, +44).
+* **Opt-In Privacy & Consent Gate**: An optional fail-safe that, when enabled, natively parses Google Consent Mode v2 (x-ga-gcd and x-ga-gcs headers) to evaluate ad_storage or analytics_storage. Includes a custom CMP variable fallback. Once activated, if consent is missing, the template safely returns undefined, guaranteeing zero data leakage regardless of misconfigured tag triggers.
+* **Zero-Config Data Ingestion**: Optionally extract data directly from the standard GA4 user_data object (including nested array address fields), or map custom variables manually.
+* **Obfuscation & Sanity Detection**: Automatically detects front-end masked data (e.g., joh***@gmail.com) and structurally malformed strings, dropping them entirely to prevent useless hashes from polluting your ad network match rates.
+* **Text & Email Normalization**: Trims whitespace, strictly lowercases, and optionally strips alias dots from @gmail.com and @googlemail.com local addresses.
+* **MRZ Name Transliteration**: Hardcoded dictionary safely transliterates European characters (e.g., æ ➔ ae, ø ➔ oe, ß ➔ ss) down to the standard English a-z alphabet recommended by Meta.
+* **Advanced E.164 Phone Formatting**: Intelligently strips formatting symbols ( - . ), removes local leading zeros, and adds a default country code only when it's missing.
+* **Dynamic Country Routing**: Map ISO country codes from Event Data (like NO, SE, US) directly to their specific dialing prefixes (+47, +46, +1) for multi-national storefronts.
+* **Custom Replacement Engine**: Simple UI tables allow you to define custom character replacements or removals for specific edge cases without touching code.
+* **Sandbox-Safe Architecture**: Features built-in double-hash prevention (safely passes through pre-hashed CRM data). Outputs your choice of standard strings or secure SHA-256 Hex hashes.
 
 ## How to Configure & Map Data
 
