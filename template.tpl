@@ -34,16 +34,16 @@ ___TEMPLATE_PARAMETERS___
     "macrosInSelect": false,
     "selectItems": [
       {
-        "value": "manual",
-        "displayValue": "Map a Custom Variable (Manual)"
-      },
-      {
         "value": "event_data",
         "displayValue": "Extract from Event Data (user_data object)"
+      },
+      {
+        "value": "manual",
+        "displayValue": "Map a Custom Variable (Manual)"
       }
     ],
     "simpleValueType": true,
-    "defaultValue": "manual"
+    "defaultValue": "event_data"
   },
   {
     "type": "TEXT",
@@ -87,6 +87,10 @@ ___TEMPLATE_PARAMETERS___
         "displayValue": "Last Name"
       },
       {
+        "value": "street",
+        "displayValue": "Street"
+      },
+      {
         "value": "city",
         "displayValue": "City"
       },
@@ -124,14 +128,16 @@ ___TEMPLATE_PARAMETERS___
         "name": "toLowerCase",
         "checkboxText": "Convert to Lower Case",
         "simpleValueType": true,
-        "defaultValue": true
+        "defaultValue": true,
+        "alwaysInSummary": true
       },
       {
         "type": "CHECKBOX",
         "name": "hashOutput",
         "checkboxText": "Hash output (SHA256)",
         "simpleValueType": true,
-        "defaultValue": true
+        "defaultValue": true,
+        "alwaysInSummary": true
       }
     ]
   },
@@ -597,6 +603,7 @@ if (data.inputMethod === 'event_data') {
     if (primaryAddress) {
       if (field === 'first_name') rawInput = primaryAddress.first_name;
       else if (field === 'last_name') rawInput = primaryAddress.last_name;
+      else if (field === 'street') rawInput = primaryAddress.street;
       else if (field === 'city') rawInput = primaryAddress.city;
       else if (field === 'region') rawInput = primaryAddress.region;
       else if (field === 'postal_code') rawInput = primaryAddress.postal_code;
@@ -897,5 +904,6 @@ scenarios: []
 
 ___NOTES___
 
-Created on 5/15/2026, 5:25:17 PM
+Created on 8/15/2022, 5:25:17 PM
+
 

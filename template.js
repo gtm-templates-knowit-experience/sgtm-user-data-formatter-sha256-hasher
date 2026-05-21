@@ -109,6 +109,7 @@ if (data.inputMethod === 'event_data') {
     if (primaryAddress) {
       if (field === 'first_name') rawInput = primaryAddress.first_name;
       else if (field === 'last_name') rawInput = primaryAddress.last_name;
+      else if (field === 'street') rawInput = primaryAddress.street;
       else if (field === 'city') rawInput = primaryAddress.city;
       else if (field === 'region') rawInput = primaryAddress.region;
       else if (field === 'postal_code') rawInput = primaryAddress.postal_code;
