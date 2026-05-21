@@ -2,6 +2,8 @@ homepage: "https://github.com/gtm-templates-knowit-experience/"
 documentation: "https://github.com/gtm-templates-knowit-experience/sgtm-user-data-formatter-sha256-hasher"
 versions:
   # Latest version
+  - sha: ccd516c7fc43b53b96b8064c93584b1f1c499597
+    changeNotes: Dropdown config adjustments, and added street as option.
+  # Older versions
   - sha: ff1e840b2f5b062efec35de422ec038bd3733492
     changeNotes: Inital release.
-
