@@ -172,6 +172,25 @@ if (data.toLowerCase) {
   toHash = toHash.toLowerCase();
 }
 
+// --- Remove Email Plus Addressing (Sub-addressing) ---
+if (data.removePlusAddressing) {
+  let emailParts = toHash.split('@');
+  
+  // Ensure it actually looks like an email with a local and domain part
+  if (emailParts.length === 2) {
+    let localPart = emailParts[0];
+    let domainPart = emailParts[1];
+    
+    let plusIndex = localPart.indexOf('+');
+    
+    // If a '+' exists in the local part, slice everything before it
+    if (plusIndex !== -1) {
+      localPart = localPart.slice(0, plusIndex);
+      toHash = localPart + '@' + domainPart;
+    }
+  }
+}
+
 if (data.removeGmailDots) {
   let emailParts = toHash.split('@');
   if (emailParts.length === 2) {

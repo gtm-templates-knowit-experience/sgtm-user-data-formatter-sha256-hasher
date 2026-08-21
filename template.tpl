@@ -253,7 +253,8 @@ ___TEMPLATE_PARAMETERS___
             "type": "CHECKBOX",
             "name": "removeWhiteSpaces",
             "checkboxText": "Remove White Spaces",
-            "simpleValueType": true
+            "simpleValueType": true,
+            "help": "Strips all spaces and tabs from the string. Highly recommended, as accidental spaces will completely alter and ruin the resulting SHA256 hash."
           }
         ]
       },
@@ -267,7 +268,15 @@ ___TEMPLATE_PARAMETERS___
             "type": "CHECKBOX",
             "name": "removeGmailDots",
             "checkboxText": "Remove periods from Gmail addresses before the @ symbol",
-            "simpleValueType": true
+            "simpleValueType": true,
+            "help": "Strips dots from the username portion of Gmail addresses (e.g., \u0027john.doe@gmail.com\u0027 becomes \u0027johndoe@gmail.com\u0027). Since Google ignores these dots, removing them normalizes the email and significantly improves match rates."
+          },
+          {
+            "type": "CHECKBOX",
+            "name": "removePlusAddressing",
+            "checkboxText": "Remove Plus Addressing (Sub-addressing)",
+            "simpleValueType": true,
+            "help": "Strips the \"+alias\" portion from emails (e.g., turns \"name+newsletter@gmail.com\" into \"name@gmail.com\""
           },
           {
             "type": "CHECKBOX",
@@ -294,7 +303,8 @@ ___TEMPLATE_PARAMETERS___
             "type": "CHECKBOX",
             "name": "replaceCharacters",
             "checkboxText": "Enable Character Replacement / Transliteration",
-            "simpleValueType": true
+            "simpleValueType": true,
+            "help": "Reveals a table to define custom character substitutions. This is crucial for transliterating special characters (e.g., mapping \u0027æ\u0027 to \u0027ae\u0027 or \u0027ü\u0027 to \u0027ue\u0027) so your data complies with the standard English alphabet requirements some platforms may have."
           },
           {
             "type": "SIMPLE_TABLE",
@@ -326,7 +336,8 @@ ___TEMPLATE_PARAMETERS___
             "type": "CHECKBOX",
             "name": "removeCharacters",
             "checkboxText": "Remove specific characters",
-            "simpleValueType": true
+            "simpleValueType": true,
+            "help": "Reveals a table allowing you to specify exact characters to delete entirely from the string. Useful for stripping unwanted brackets, hyphens, or custom CRM formatting symbols before hashing."
           },
           {
             "type": "SIMPLE_TABLE",
@@ -664,6 +675,25 @@ const replaceAll = function(str, oldstr, newstr) {
 // ==========================================
 if (data.toLowerCase) {
   toHash = toHash.toLowerCase();
+}
+
+// --- Remove Email Plus Addressing (Sub-addressing) ---
+if (data.removePlusAddressing) {
+  let emailParts = toHash.split('@');
+  
+  // Ensure it actually looks like an email with a local and domain part
+  if (emailParts.length === 2) {
+    let localPart = emailParts[0];
+    let domainPart = emailParts[1];
+    
+    let plusIndex = localPart.indexOf('+');
+    
+    // If a '+' exists in the local part, slice everything before it
+    if (plusIndex !== -1) {
+      localPart = localPart.slice(0, plusIndex);
+      toHash = localPart + '@' + domainPart;
+    }
+  }
 }
 
 if (data.removeGmailDots) {
