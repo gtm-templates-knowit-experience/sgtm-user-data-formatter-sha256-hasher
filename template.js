@@ -1,371 +1,180 @@
-const sha256Sync = require('sha256Sync');
+const makeString = require('makeString');
 const getType = require('getType');
+const Object = require('Object');
 const getEventData = require('getEventData');
+const sha256Sync = require('sha256Sync');
+const createRegex = require('createRegex');
 
-// ==========================================
-// 0. PRIVACY & CONSENT GATE (Google CoMo + Custom)
-// ==========================================
-if (data.enableConsentGate) {
-  let hasMarketingConsent = false;
-  let hasAnalyticsConsent = false;
-  let parsedGoogleConsent = false;
+const userData = getEventData('user_data');
 
-  // Method A: Check Google Consent Mode v2 (x-ga-gcd header)
-  // Structure: 11<ad_storage>1<analytics_storage>1<ad_user_data>1<ad_personalization>5
-  const xGaGcd = getEventData('x-ga-gcd');
-  
-  if (xGaGcd && getType(xGaGcd) === 'string') {
-    // Sandbox-safe way to extract letters (no regex literal)
-    let letters = [];
-    for (let i = 0; i < xGaGcd.length; i++) {
-      let char = xGaGcd[i].toLowerCase();
-      // Check if the character is a letter between 'a' and 'z'
-      if (char >= 'a' && char <= 'z') {
-        letters.push(char);
-      }
-    }
-    
-    if (letters.length >= 2) {
-      const adLetter = letters[0];
-      const analyticsLetter = letters[1];
-      
-      // 't', 'r', 'n', 'v' represent the various states of 'granted'
-      const grantedStatuses = ['t', 'r', 'n', 'v'];
-      
-      // Check if the extracted letter exists in our granted list
-      if (grantedStatuses.indexOf(adLetter) !== -1) hasMarketingConsent = true;
-      if (grantedStatuses.indexOf(analyticsLetter) !== -1) hasAnalyticsConsent = true;
-      
-      parsedGoogleConsent = true;
-    }
+if (getType(userData) === 'undefined') {
+  return userData;
+}
+
+// email address
+if (userData.email) {
+  userData.email = normalizeEmail(userData.email);
+}
+
+if (data.hashUserData) {
+  if (userData.sha256_email_address) {
+    // make sure it is hashed
+    userData.sha256_email_address = hashData(userData.sha256_email_address);
   }
 
-  // Method B: Check Google Consent Mode v1 (x-ga-gcs header fallback)
-  // Format: G1[analytics][marketing] -> e.g., G110 (Analytics only), G111 (Both)
-  if (!parsedGoogleConsent) {
-    const xGaGcs = getEventData('x-ga-gcs');
-    if (xGaGcs && getType(xGaGcs) === 'string' && xGaGcs.length >= 3) {
-      if (xGaGcs[2] === '1') hasMarketingConsent = true;
-      if (xGaGcs[1] === '1') hasAnalyticsConsent = true;
-    }
-  }
+  userData.sha256_email_address = stringOrArrayAppend(
+    userData.sha256_email_address,
+    hashData(userData.email)
+  );
 
-  // Evaluate based on the user's selected requirement in the Template UI
-  let consentMet = false;
-  const requiredType = data.consentType || 'marketing'; 
-
-  if (requiredType === 'marketing' && hasMarketingConsent) {
-    consentMet = true;
-  } else if (requiredType === 'analytics' && hasAnalyticsConsent) {
-    consentMet = true;
-  } else if (requiredType === 'both' && hasMarketingConsent && hasAnalyticsConsent) {
-    consentMet = true;
-  }
-
-  // Method C: Fallback to Custom User-Defined Variable (CMP integration)
-  if (!consentMet && data.consentVariable) {
-    let currentConsent = data.consentVariable;
-    let expectedConsent = data.expectedConsentValue || 'granted';
-
-    if (getType(currentConsent) === 'string') currentConsent = currentConsent.toLowerCase().trim();
-    if (getType(expectedConsent) === 'string') expectedConsent = expectedConsent.toLowerCase().trim();
-
-    if (currentConsent === expectedConsent || currentConsent === true) {
-      consentMet = true;
-    }
-  }
-
-  // If requirements are not met, safely kill the process
-  if (!consentMet) {
-    return undefined; 
+  // remove unhashed user data
+  if (userData.email) {
+    Object.delete(userData, 'email');
   }
 }
 
-// ==========================================
-// 1. DATA INGESTION (Manual vs Event Data)
-// ==========================================
-let rawInput;
+// phone number
+if (userData.phone_number) {
+  userData.phone_number = normalizePhoneNumber(userData.phone_number);
+}
 
-if (data.inputMethod === 'event_data') {
-  const userData = getEventData('user_data') || {};
-  const field = data.userDataField;
-
-  if (field === 'email_address') {
-    // Handle both 'email_address' and 'email' keys
-    rawInput = userData.email || userData.email_address;
-  } 
-  else if (field === 'phone_number') {
-    rawInput = userData.phone_number;
-  } 
-  else if (userData.address) {
-    // Navigate the address array. We grab the first object (index 0).
-    let primaryAddress = userData.address[0];
-    
-    // Fallback: If some custom CRM pushes a flat object instead of an array, handle that too.
-    if (!primaryAddress && getType(userData.address) === 'object' && userData.address.first_name) {
-      primaryAddress = userData.address;
-    }
-
-    if (primaryAddress) {
-      if (field === 'first_name') rawInput = primaryAddress.first_name;
-      else if (field === 'last_name') rawInput = primaryAddress.last_name;
-      else if (field === 'street') rawInput = primaryAddress.street;
-      else if (field === 'city') rawInput = primaryAddress.city;
-      else if (field === 'region') rawInput = primaryAddress.region;
-      else if (field === 'postal_code') rawInput = primaryAddress.postal_code;
-      else if (field === 'country') rawInput = primaryAddress.country;
-    }
+if (data.hashUserData) {
+  if (userData.sha256_phone_number) {
+    // make sure it is hashed
+    userData.sha256_phone_number = hashData(userData.sha256_phone_number);
   }
-} else {
-  rawInput = data.input;
-}
 
-// ==========================================
-// 2. TYPE SAFETY & BASE NORMALIZATION
-// ==========================================
-if (getType(rawInput) === 'undefined' || rawInput === null || rawInput === '') {
-  return undefined; 
-}
-
-// Convert numbers (e.g., 12345678) to strings
-if (getType(rawInput) === 'number') {
-  rawInput = rawInput + '';
-} else if (getType(rawInput) !== 'string') {
-  return undefined; 
-}
-
-rawInput = rawInput.trim();
-
-// Prevent double-hashing
-function isAlreadyHashed(str) {
-  return str && str.length === 64 && (str.match('^[A-Fa-f0-9]{64}$') !== null);
-}
-
-if (isAlreadyHashed(rawInput)) {
-  return rawInput.toLowerCase(); 
-}
-
-// Set our working variable
-let toHash = rawInput;
-
-// ==========================================
-// 3. UTILITY FUNCTIONS
-// ==========================================
-const replaceAll = function(str, oldstr, newstr) {
-  if (!str || !oldstr) return str; 
-  
-  let rs = str + ''; 
-  let searchStr = oldstr + '';
-  let replaceStr = newstr + '';
-  
-  if (searchStr === replaceStr) return rs;
-  while (rs.indexOf(searchStr) >= 0) {
-    rs = rs.replace(searchStr, replaceStr);
+  if (userData.phone_number) {
+    userData.sha256_phone_number = stringOrArrayAppend(
+      userData.sha256_phone_number,
+      hashData(userData.phone_number)
+    );
   }
-  return rs;
-};
 
-// ==========================================
-// 4. TEXT & EMAIL NORMALIZATION
-// ==========================================
-if (data.toLowerCase) {
-  toHash = toHash.toLowerCase();
-}
-
-// --- Remove Email Plus Addressing (Sub-addressing) ---
-if (data.removePlusAddressing) {
-  let emailParts = toHash.split('@');
-  
-  // Ensure it actually looks like an email with a local and domain part
-  if (emailParts.length === 2) {
-    let localPart = emailParts[0];
-    let domainPart = emailParts[1];
-    
-    let plusIndex = localPart.indexOf('+');
-    
-    // If a '+' exists in the local part, slice everything before it
-    if (plusIndex !== -1) {
-      localPart = localPart.slice(0, plusIndex);
-      toHash = localPart + '@' + domainPart;
-    }
+  // remove unhashed user data
+  if (userData.phone_number) {
+    Object.delete(userData, 'phone_number');
   }
 }
 
-if (data.removeGmailDots) {
-  let emailParts = toHash.split('@');
-  if (emailParts.length === 2) {
-    let localPart = emailParts[0];
-    let domainPart = emailParts[1];
-    
-    if (domainPart === 'gmail.com' || domainPart === 'googlemail.com') {
-      localPart = replaceAll(localPart, '.', '');
-      toHash = localPart + '@' + domainPart;
-    }
+return userData;
+
+function hashData(value) {
+  if (!value) {
+    return value;
   }
-}
 
-if (data.replaceCharacters && data.replacementTable) {
-  for (let i = 0; i < data.replacementTable.length; i++) {
-    let row = data.replacementTable[i];
-    if (row.targetChar) {
-      let replacement = row.replacementChar || ''; 
-      toHash = replaceAll(toHash, row.targetChar, replacement);
-    }
-  }
-}
+  const type = getType(value);
 
-if (data.removeCharacters && data.removalTable) {
-  for (let i = 0; i < data.removalTable.length; i++) {
-    let row = data.removalTable[i];
-    if (row.charToRemove) {
-      toHash = replaceAll(toHash, row.charToRemove, '');
-    }
-  }
-}
-
-if (data.removeWhiteSpaces) {
-  toHash = replaceAll(toHash, ' ', '');
-  toHash = replaceAll(toHash, '\t', ''); 
-}
-
-// --- Auto-Transliterate Standard European Characters ---
-if (data.useStandardTransliteration) {
-  const euroMap = [
-    { t: 'æ', r: 'ae' }, { t: 'ø', r: 'oe' }, { t: 'å', r: 'aa' },
-    { t: 'ä', r: 'ae' }, { t: 'ö', r: 'oe' }, { t: 'ü', r: 'ue' },
-    { t: 'ß', r: 'ss' }, { t: 'œ', r: 'oe' }, { t: 'é', r: 'e' },
-    { t: 'è', r: 'e' },  { t: 'ê', r: 'e' },  { t: 'ë', r: 'e' },
-    { t: 'á', r: 'a' },  { t: 'à', r: 'a' },  { t: 'â', r: 'a' },
-    { t: 'í', r: 'i' },  { t: 'ì', r: 'i' },  { t: 'î', r: 'i' },
-    { t: 'ó', r: 'o' },  { t: 'ò', r: 'o' },  { t: 'ô', r: 'o' },
-    { t: 'ú', r: 'u' },  { t: 'ù', r: 'u' },  { t: 'û', r: 'u' },
-    { t: 'ñ', r: 'n' },  { t: 'ç', r: 'c' }
-  ];
-
-  for (let i = 0; i < euroMap.length; i++) {
-    toHash = replaceAll(toHash, euroMap[i].t, euroMap[i].r);
-  }
-}
-
-// ==========================================
-// 5. ADVANCED PHONE NUMBER FORMATTING
-// ==========================================
-if (data.isPhoneNumber) {
-  if (toHash.indexOf('00') === 0) {
-    toHash = '+' + toHash.slice(2);
-  }
-  
-  toHash = replaceAll(toHash, ' ', '');
-  toHash = replaceAll(toHash, '-', '');
-  toHash = replaceAll(toHash, '(', '');
-  toHash = replaceAll(toHash, ')', '');
-  toHash = replaceAll(toHash, '.', '');
-
-  if (data.prefixStrategy === 'addPrefix') {
-    
-    // --- Sanitize function type safety ---
-    const sanitizeConfigPrefix = function(pfx) {
-      if (!pfx) return '';
-      // Force user input to a string before cleaning
-      let cleanPfx = replaceAll(pfx + '', ' ', ''); 
-      if (cleanPfx.indexOf('00') === 0) cleanPfx = '+' + cleanPfx.slice(2);
-      if (cleanPfx.indexOf('+') !== 0) cleanPfx = '+' + cleanPfx;
-      return cleanPfx;
-    };
-
-    let prefix = sanitizeConfigPrefix(data.defaultCountryCode); 
-    
-    if (data.useDynamicCountryCode && data.countryCodeMapping) {
-      let eventLocationKey = data.eventLocationKey || 'event_location.country';
-      let eventCountryCode = getEventData(eventLocationKey);
-
-      if (eventCountryCode && getType(eventCountryCode) === 'string') {
-        eventCountryCode = eventCountryCode.toUpperCase();
-        for (let i = 0; i < data.countryCodeMapping.length; i++) {
-          let row = data.countryCodeMapping[i];
-          if (row.isoCode && row.isoCode.toUpperCase() === eventCountryCode) {
-            prefix = sanitizeConfigPrefix(row.dialingCode);
-            break; 
-          }
-        }
-      }
-    }
-    
-    if (prefix) {
-      let prefixDigits = replaceAll(prefix, '+', '');
-
-      if (toHash.indexOf(prefix) === 0) {
-        // Case 1
-      } else if (toHash.indexOf(prefixDigits) === 0) {
-        toHash = '+' + toHash;
-      } else if (toHash.indexOf('+') === 0) {
-        // Case 3
-      } else {
-        if (toHash.indexOf('0') === 0) {
-          toHash = toHash.slice(1); 
-        } else if (toHash.indexOf('8') === 0 && prefix === '+370') {
-          toHash = toHash.slice(1); 
-        }
-        toHash = prefix + toHash;
-      }
-    }
-  }
-} else {
-  if (data.removeLeadingZero) {
-    if (toHash.indexOf('00') === 0) {
-      toHash = toHash.slice(2);
-    } else if (toHash.indexOf('0') === 0) {
-      toHash = toHash.slice(1);
-    }
-  }
-}
-
-// ==========================================
-// 6. FINAL PLATFORM NORMALIZATIONS & VALIDATION
-// ==========================================
-if (data.removePlus) {
-  toHash = replaceAll(toHash, '+', '');
-}
-
-// --- EMAIL SANITY & OBFUSCATION CHECK ---
-if (data.isEmail) {
-  // 1. Check for standard front-end obfuscation (asterisks)
-  if (toHash.indexOf('*') !== -1) {
+  if (type === 'undefined' || value === 'undefined') {
     return undefined;
   }
-  
-  // 2. Sandbox-safe structural check
-  let emailParts = toHash.split('@');
-  
-  // Must have exactly one '@', and text on both sides
-  if (emailParts.length !== 2 || emailParts[0] === '' || emailParts[1] === '') {
+
+  if (type === 'array') {
+    return value.map((val) => {
+      return hashData(val);
+    });
+  }
+
+  if (isHashed(value)) {
+    return value;
+  }
+
+  return sha256Sync(value, {outputEncoding: 'hex'});
+}
+
+function isHashed(value) {
+  if (!value) {
+    return false;
+  }
+
+  return makeString(value).match('^[A-Fa-f0-9]{64}$') !== null;
+}
+
+function normalizeEmail(value) {
+  if (!value) {
+    return value;
+  }
+
+  const type = getType(value);
+
+  if (type === 'undefined' || value === 'undefined') {
     return undefined;
   }
-  
-  // The domain part must contain at least one dot
-  if (emailParts[1].indexOf('.') === -1) {
+
+  if (type === 'array') {
+    return value.map((val) => {
+      return normalizeEmail(val);
+    });
+  }
+
+  value = makeString(value).trim().toLowerCase();
+
+  const emailParts = value.split('@');
+  const localPart = emailParts[0];
+  const domain = emailParts[1];
+
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    // if it is a gmail address, remove everything after + and ignore dots
+    value = localPart.split('+')[0].replace(createRegex('\\.', 'g'), '') + '@' + domain;
+  }
+
+  return value;
+}
+
+function normalizePhoneNumber(value) {
+  if (!value) {
+    return value;
+  }
+
+  const type = getType(value);
+
+  if (type === 'undefined' || value === 'undefined') {
     return undefined;
   }
-}
 
-// --- REGEX SANITY CHECK ---
-if (data.isPhoneNumber) {
-  // Regex pattern: 
-  // ^\+? : Optionally starts with a '+'
-  // [0-9]{5,15}$ : Followed by 5 to 15 digits until the end of the string.
-  let isValidPhone = toHash.match('^\\+?[0-9]{5,15}$');
-  
-  if (!isValidPhone) {
-    // It's better to return undefined than to send a useless garbage hash.
-    return undefined; 
+  if (type === 'array') {
+    return value.map((val) => {
+      return normalizePhoneNumber(val);
+    });
   }
+
+  return '+' + makeString(value).replace(createRegex('\\D', 'g'), '');
 }
 
-// ==========================================
-// 7. HASHING
-// ==========================================
-if (data.hashOutput) {
-  return sha256Sync(toHash, {outputEncoding: 'hex'});
-}
+function stringOrArrayAppend(existingValue, newValue) {
+  const typeOfExistingValue = getType(existingValue);
+  const typeOfNewValue = getType(newValue);
 
-return toHash;
+  if (typeOfExistingValue === 'undefined' || existingValue === 'undefined') {
+    return newValue;
+  }
+
+  if (typeOfNewValue === 'undefined' || typeOfNewValue === 'undefined') {
+    return existingValue;
+  }
+
+  if (typeOfExistingValue !== 'array') {
+    existingValue = [existingValue];
+  }
+
+  if (typeOfNewValue !== 'array') {
+    newValue = [newValue];
+  }
+
+  // merge
+  let result = existingValue.concat(newValue);
+
+  // eliminate duplicates
+  result = result.filter(function(item, pos, self) {
+    return self.indexOf(item) === pos;
+  });
+
+  if (result.length === 0) {
+    return undefined;
+  } else if (result.length === 1) {
+    return result[0];
+  }
+
+  return result;
+}

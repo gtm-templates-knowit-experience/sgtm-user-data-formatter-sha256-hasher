@@ -21,17 +21,17 @@ When sending User Data to analytics or ad networks, you generally have three arc
 * **Ultimate Debuggability**: Because the data arrives at your server in clear text, you can use the SGTM Preview Mode to inspect the raw string, verify the formatting rules worked perfectly, and ensure the data is pristine before the template turns it into an irreversible hash.
 * **Marketing Agility**: Normalizing data (like stripping Gmail dots or translating ø to oe) could be difficult to enforce in backend databases. Doing it centrally on the server container allows analytics teams to adapt to new vendor rules instantly, without waiting on backend developer resources.
 
-### 🌟 Features Overview
+### Features Overview
 
-*   **🛡Opt-In Privacy & Consent Gate:** An optional fail-safe that, when enabled, natively parses Google Consent Mode v2 (`x-ga-gcd` and `x-ga-gcs` headers) to evaluate `ad_storage` or `analytics_storage`. Includes a custom CMP variable fallback. Once activated, if consent is missing, the template safely returns `undefined`, guaranteeing zero data leakage regardless of misconfigured tag triggers.
-*   **⚡ Zero-Config Data Ingestion:** Optionally extract data directly from the standard GA4 `user_data` object (including nested array address fields), or map custom variables manually.
-*   **🕵️‍♂️ Obfuscation & Sanity Detection:** Automatically detects front-end masked data (e.g., `joh***@gmail.com`) and structurally malformed strings, dropping them entirely to prevent useless hashes from polluting your ad network match rates.
-*   **📧 Text & Email Normalization:** Trims whitespace, strictly lowercases, and optionally strips alias dots from `@gmail.com` and `@googlemail.com` local addresses. It also features **Plus Addressing (Sub-addressing) removal**, instantly cleaning emails like `name+newsletter@gmail.com` down to `name@gmail.com` to prevent diluted match rates.
-*   **🌍 MRZ Name Transliteration:** Hardcoded dictionary safely transliterates European characters (e.g., `æ` ➔ `ae`, `ø` ➔ `oe`, `ß` ➔ `ss`) down to the standard English `a-z` alphabet required by platforms like Meta and TikTok.
-*   **📱 Advanced E.164 Phone Formatting:** Intelligently strips formatting symbols `( - . )`, removes local leading zeros, and adds a default country code only when it's missing. 
-*   **🗺️ Dynamic Country Routing:** Map ISO country codes from Event Data (like `NO`, `SE`, `US`) directly to their specific dialing prefixes (`+47`, `+46`, `+1`) for multi-national storefronts.
-*   **🛠️ Custom Replacement Engine:** Simple UI tables allow you to define custom character replacements or removals for specific edge cases without touching code.
-*   **🔒 Sandbox-Safe Architecture:** Features built-in Type Safety to prevent server crashes, double-hash prevention (safely passes through pre-hashed CRM data), and RE2-compliant array parsing that keeps server CPU costs minimal. Outputs your choice of standard strings or secure SHA-256 Hex hashes.
+*   **Opt-In Privacy & Consent Gate:** An optional fail-safe that, when enabled, natively parses Google Consent Mode v2 (`x-ga-gcd` and `x-ga-gcs` headers) to evaluate `ad_storage` or `analytics_storage`. Includes a custom CMP variable fallback. Once activated, if consent is missing, the template safely returns `undefined`, guaranteeing zero data leakage regardless of misconfigured tag triggers.
+*   **Zero-Config Data Ingestion:** Optionally extract data directly from the standard GA4 `user_data` object (including nested array address fields), or map custom variables manually.
+*   **Obfuscation & Sanity Detection:** Automatically detects front-end masked data (e.g., `joh***@gmail.com`) and structurally malformed strings, dropping them entirely to prevent useless hashes from polluting your ad network match rates.
+*   **Text & Email Normalization:** Trims whitespace, strictly lowercases, and optionally strips alias dots from `@gmail.com` and `@googlemail.com` local addresses. It also features **Plus Addressing (Sub-addressing) removal**, instantly cleaning emails like `name+newsletter@gmail.com` down to `name@gmail.com` to prevent diluted match rates.
+*   **MRZ Name Transliteration:** Hardcoded dictionary safely transliterates European characters (e.g., `æ` ➔ `ae`, `ø` ➔ `oe`, `ß` ➔ `ss`) down to the standard English `a-z` alphabet required by platforms like Meta and TikTok.
+*   **Advanced E.164 Phone Formatting:** Intelligently strips formatting symbols `( - . )`, removes local leading zeros, and adds a default country code only when it's missing. 
+*   **Dynamic Country Routing:** Map ISO country codes from Event Data (like `NO`, `SE`, `US`) directly to their specific dialing prefixes (`+47`, `+46`, `+1`) for multi-national storefronts.
+*   **Custom Replacement Engine:** Simple UI tables allow you to define custom character replacements or removals for specific edge cases without touching code.
+*   **Sandbox-Safe Architecture:** Features built-in Type Safety to prevent server crashes, double-hash prevention (safely passes through pre-hashed CRM data), and RE2-compliant array parsing that keeps server CPU costs minimal. Outputs your choice of standard strings or secure SHA-256 Hex hashes.
 
 ## How to Configure & Map Data
 
@@ -41,16 +41,18 @@ Because platforms have different rules, you should create separate variables for
 
 This setup creates a globally compliant email hash optimized for match rates.
 
-#### 1.1 Email Normalization (Google)
+#### 1.1 Email Normalization (Google Ads / GA4)
 
 1. Create a new Variable using this template.
-2. Select your raw Email variable as the Input.
+2. Select your Data Source (extract email_address directly from Event Data, or map a manual variable).
 3. Check **Convert to Lower Case**.
-4. Check **Hash Output (SHA-256)**.
-5. **Require Consent** settings (optional).
-6. Check **Remove White Spaces**.
-7. Check **Remove periods from Gmail addresses before the @ symbol**.
+4. Check **Remove White Spaces**.
+5. Check **Remove periods (.) from email username**.
+6. Check **Remove Plus Addressing (Sub-addressing)**.
+7. Set **Apply Alias Normalization To to Only gmail.com and googlemail.com**.
 8. Check **Validate Email Format & Drop Obfuscation** (optional).
+9. Check **Hash Output (SHA-256)**.
+10. **Require Consent** settings (optional).
 
 
 <img src="Images/user-data-formatter-email-hash-google.png" alt="Email Hashing for Google example" />

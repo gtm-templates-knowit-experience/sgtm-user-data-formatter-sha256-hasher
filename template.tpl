@@ -267,9 +267,9 @@ ___TEMPLATE_PARAMETERS___
           {
             "type": "CHECKBOX",
             "name": "removeGmailDots",
-            "checkboxText": "Remove periods from Gmail addresses before the @ symbol",
+            "checkboxText": "Remove periods (.) from email username",
             "simpleValueType": true,
-            "help": "Strips dots from the username portion of Gmail addresses (e.g., \u0027john.doe@gmail.com\u0027 becomes \u0027johndoe@gmail.com\u0027). Since Google ignores these dots, removing them normalizes the email and significantly improves match rates."
+            "help": "Strips dots from the username portion of email addresses (e.g., \u0027john.doe@gmail.com\u0027 becomes \u0027johndoe@gmail.com\u0027). Since Google ignores these dots, removing them normalizes the email and significantly improves match rates."
           },
           {
             "type": "CHECKBOX",
@@ -277,6 +277,36 @@ ___TEMPLATE_PARAMETERS___
             "checkboxText": "Remove Plus Addressing (Sub-addressing)",
             "simpleValueType": true,
             "help": "Strips the \"+alias\" portion from emails (e.g., turns \"name+newsletter@gmail.com\" into \"name@gmail.com\""
+          },
+          {
+            "type": "RADIO",
+            "name": "emailNormalizationScope",
+            "displayName": "Apply Alias Normalization To:",
+            "radioItems": [
+              {
+                "value": "gmail_only",
+                "displayValue": "Only gmail.com and googlemail.com"
+              },
+              {
+                "value": "all_domains",
+                "displayValue": "All email domains"
+              }
+            ],
+            "simpleValueType": true,
+            "enablingConditions": [
+              {
+                "paramName": "removePlusAddressing",
+                "paramValue": true,
+                "type": "EQUALS"
+              },
+              {
+                "paramName": "removeGmailDots",
+                "paramValue": true,
+                "type": "EQUALS"
+              }
+            ],
+            "defaultValue": "gmail_only",
+            "help": "Google strictly recommends removing dots and plus-suffixes ONLY for Gmail addresses to prevent false matches. Select \u0027All email domains\u0027 only if you are formatting data for a specific vendor that demands aggressive normalization."
           },
           {
             "type": "CHECKBOX",
@@ -677,38 +707,43 @@ if (data.toLowerCase) {
   toHash = toHash.toLowerCase();
 }
 
-// --- Remove Email Plus Addressing (Sub-addressing) ---
-if (data.removePlusAddressing) {
+// --- EMAIL ALIAS NORMALIZATION ---
+if (data.isEmail) {
   let emailParts = toHash.split('@');
   
-  // Ensure it actually looks like an email with a local and domain part
   if (emailParts.length === 2) {
     let localPart = emailParts[0];
     let domainPart = emailParts[1];
     
-    let plusIndex = localPart.indexOf('+');
+    // Determine if we should apply the normalization based on the user's scope selection
+    let scopeMatches = false;
+    if (data.emailNormalizationScope === 'all_domains') {
+      scopeMatches = true;
+    } else if (domainPart === 'gmail.com' || domainPart === 'googlemail.com') {
+      scopeMatches = true; // Default Google/Vendor recommended behavior
+    }
     
-    // If a '+' exists in the local part, slice everything before it
-    if (plusIndex !== -1) {
-      localPart = localPart.slice(0, plusIndex);
+    if (scopeMatches) {
+      // 1. Remove Plus Addressing
+      if (data.removePlusAddressing) {
+        let plusIndex = localPart.indexOf('+');
+        if (plusIndex !== -1) {
+          localPart = localPart.slice(0, plusIndex);
+        }
+      }
+      
+      // 2. Remove Dots
+      if (data.removeGmailDots) {
+        localPart = replaceAll(localPart, '.', '');
+      }
+      
+      // Reassemble the clean email
       toHash = localPart + '@' + domainPart;
     }
   }
 }
 
-if (data.removeGmailDots) {
-  let emailParts = toHash.split('@');
-  if (emailParts.length === 2) {
-    let localPart = emailParts[0];
-    let domainPart = emailParts[1];
-    
-    if (domainPart === 'gmail.com' || domainPart === 'googlemail.com') {
-      localPart = replaceAll(localPart, '.', '');
-      toHash = localPart + '@' + domainPart;
-    }
-  }
-}
-
+// --- CUSTOM CHARACTER REPLACEMENT ---
 if (data.replaceCharacters && data.replacementTable) {
   for (let i = 0; i < data.replacementTable.length; i++) {
     let row = data.replacementTable[i];
@@ -719,6 +754,7 @@ if (data.replaceCharacters && data.replacementTable) {
   }
 }
 
+// --- CUSTOM CHARACTER REMOVAL ---
 if (data.removeCharacters && data.removalTable) {
   for (let i = 0; i < data.removalTable.length; i++) {
     let row = data.removalTable[i];
@@ -728,12 +764,13 @@ if (data.removeCharacters && data.removalTable) {
   }
 }
 
+// --- WHITESPACE REMOVAL ---
 if (data.removeWhiteSpaces) {
   toHash = replaceAll(toHash, ' ', '');
   toHash = replaceAll(toHash, '\t', ''); 
 }
 
-// --- Auto-Transliterate Standard European Characters ---
+// --- AUTO-TRANSLITERATE STANDARD EUROPEAN CHARACTERS ---
 if (data.useStandardTransliteration) {
   const euroMap = [
     { t: 'æ', r: 'ae' }, { t: 'ø', r: 'oe' }, { t: 'å', r: 'aa' },
